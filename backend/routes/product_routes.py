@@ -1,35 +1,34 @@
-from typing import List
-from fastapi import APIRouter, Depends, status
+from decimal import Decimal
+from typing import Literal, Optional
+
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from database import get_db
-from schema.product_schema import ProductCreate, ProductUpdate, ProductResponse
+from schema.common_schema import Page
+from schema.product_schema import ProductResponse
 from service import product_service
-from core.security import get_current_user
 
-router = APIRouter(prefix="/products", tags=["Product Master"], dependencies=[Depends(get_current_user)])
+# Public (no login needed). Admin create/update/delete is in admin_routes.py
+router = APIRouter(prefix="/products", tags=["4. Products"])
 
 
-@router.get("/", response_model=List[ProductResponse])
-def list_products(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-    return product_service.get_all_products(db, skip, limit)
+@router.get("/", response_model=Page[ProductResponse])
+def list_products(
+    page: int = Query(1, ge=1),
+    size: int = Query(20, ge=1, le=100),
+    search: Optional[str] = None,
+    category_id: Optional[int] = None,
+    min_price: Optional[Decimal] = Query(None, ge=0),
+    max_price: Optional[Decimal] = Query(None, ge=0),
+    in_stock: Optional[bool] = None,
+    sort: Literal["newest", "price_asc", "price_desc", "name_asc"] = "newest",
+    db: Session = Depends(get_db),
+):
+    return product_service.list_products(db, page, size, search, category_id,
+                                         min_price, max_price, in_stock, sort)
 
 
 @router.get("/{product_id}", response_model=ProductResponse)
 def get_product(product_id: int, db: Session = Depends(get_db)):
-    return product_service.get_product_by_id(db, product_id)
-
-
-@router.post("/", response_model=ProductResponse, status_code=status.HTTP_201_CREATED)
-def create_product(data: ProductCreate, db: Session = Depends(get_db)):
-    return product_service.create_product(db, data)
-
-
-@router.put("/{product_id}", response_model=ProductResponse)
-def update_product(product_id: int, data: ProductUpdate, db: Session = Depends(get_db)):
-    return product_service.update_product(db, product_id, data)
-
-
-@router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_product(product_id: int, db: Session = Depends(get_db)):
-    product_service.delete_product(db, product_id)
+    return product_service.get_product(db, product_id)

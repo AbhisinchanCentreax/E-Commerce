@@ -1,12 +1,12 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
-from core.security import hash_password, verify_password
-from models.user_model import User
+from core.security import hash_password, verify_password, create_access_token
+from models.user_model import User, UserRole
 from schema.user_schema import UserCreate
 
 
-def register_user(db: Session, data: UserCreate):
+def register_user(db: Session, data: UserCreate) -> User:
     existing = db.query(User).filter(
         (User.username == data.username) | (User.email == data.email)
     ).first()
@@ -16,9 +16,11 @@ def register_user(db: Session, data: UserCreate):
 
     user = User(
         username=data.username,
-        email=data.email,
+        email=data.email.lower(),
         full_name=data.full_name,
+        phone=data.phone,
         hashed_password=hash_password(data.password),
+        role=UserRole.CUSTOMER,  # public registration can never create an admin
     )
     db.add(user)
     db.commit()
@@ -26,8 +28,10 @@ def register_user(db: Session, data: UserCreate):
     return user
 
 
-def authenticate_user(db: Session, username: str, password: str):
-    user = db.query(User).filter(User.username == username).first()
+def login_user(db: Session, username_or_email: str, password: str) -> dict:
+    user = db.query(User).filter(
+        (User.username == username_or_email) | (User.email == username_or_email.lower())
+    ).first()
     if not user or not verify_password(password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -36,4 +40,6 @@ def authenticate_user(db: Session, username: str, password: str):
         )
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User account is disabled")
-    return user
+
+    token = create_access_token(user.id, user.role)
+    return {"access_token": token, "token_type": "bearer", "user": user}
