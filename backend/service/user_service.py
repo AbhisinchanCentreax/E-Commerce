@@ -2,6 +2,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from core.security import hash_password, verify_password
+from models.refresh_token_model import RefreshToken
 from models.user_model import User
 from schema.common_schema import Page
 from schema.user_schema import UserUpdate, ChangePassword
@@ -27,6 +28,8 @@ def change_password(db: Session, user: User, data: ChangePassword) -> None:
     if not verify_password(data.current_password, user.hashed_password):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
     user.hashed_password = hash_password(data.new_password)
+    # Revoke all active refresh tokens for security
+    db.query(RefreshToken).filter(RefreshToken.user_id == user.id, RefreshToken.revoked.is_(False)).update({"revoked": True})
     db.commit()
 
 

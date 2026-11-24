@@ -1,5 +1,6 @@
 # Import every model here so SQLAlchemy knows all tables before create_all() runs
 from models.user_model import User  # noqa: F401
+from models.refresh_token_model import RefreshToken  # noqa: F401
 from models.category_model import Category  # noqa: F401
 from models.product_model import Product  # noqa: F401
 from models.cart_model import CartItem  # noqa: F401
